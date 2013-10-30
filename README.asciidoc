@@ -1,0 +1,333 @@
+Fuava CTProfiler
+================
+
+The CTProfiler is a tool to measure execution times of your codepaths in a calltree. It is not intended to profile each and every call, but to allow explicit definition of the calls to profile, such that the output is easily readable and suitable even for use during production to be able to quickly identify bottlenecks that were not found during testing.
+
+
+Example output
+--------------
+
+A real-life example of the output you can expect:
+---------------------------------------------------------------------
+ [      1]      2033,22ms |-GET: /homepage/
+ [      1]       511,21ms | |-ViewResolver.resolveViewName
+ [      1]       498,97ms | | |-ViewResolver.resolveViewName
+ [      1]      1457,69ms | |-FragmentView.render
+ [      1]      1416,49ms | | |-FragmentView.primaryView.render
+ [      4]        28,29ms | | | |-ViewResolver.resolveViewName
+ [      4]        74,71ms | | | |-FragmentView.getContentString.render
+ [      1]         7,34ms | | |-ViewResolver.resolveViewName
+ [      1]        29,19ms | | |-FragmentView.layoutView.render
+---------------------------------------------------------------------
+
+The first column in the output contains the number of calls on each path.
+In this example we can see that there is a lot of time lost in FragmentView.primaryView.render, so we would probably go back to the code now and add some more measuring points within this method, to be able to narrow-down on the problematic code.
+
+
+Adding the CallTreeProfiler
+---------------------------
+
+Gradle
+~~~~~~
+
+Add the appropriate dependencies:
+
+
+  com.freiheit:fuava-ctprofiler-core:1.0.0
+  com.freiheit:fuava-ctprofiler-guice:1.0.0
+  com.freiheit:fuava-ctprofiler-servlet:1.0.0
+
+Buildr
+~~~~~~
+
+Add the appropriate dependencies:
+
+
+  com.freiheit:fuava-ctprofiler-core:jar:1.0.0
+  com.freiheit:fuava-ctprofiler-guice:jar:1.0.0
+  com.freiheit:fuava-ctprofiler-servlet:jar:1.0.0
+
+Other
+~~~~~
+
+Of course you can also do: 
+
+  buildr clean package
+
+And install the jar as is appropriate in your project.
+
+
+Initialization
+--------------
+
+You will need to define a toplevel point for your profiling where you render the Call Tree to a logger, and clear the CallTreeProfiler. For example, this could be in your request processing.
+
+Option 1: Guice Integration with Guice-Servlet
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+If you are using Guice and Guice Servlet, you may wish to use ctprofiler-guice-VERSION.jar
+in conjunction with  ctprofiler-servlet-VERSION.jar. 
+If you use the following to setup your profiling, you will get automatic profiling of all Daos and Services for every Request, without any need to add explicit profiling. Of course you are free to inject a TimeKeeper or CallTreeProfiler and add additional measuring points explicitely, if you wish to.
+
+--------------------------------------------------------------------
+public class ExampleProfilingModule extends AbstractModule {
+
+    @Override
+    protected void configure() {
+        install(ProfilerModules.profiling());
+
+        install(ProfilerModules.decorator(
+            Layers.BUSINESS,
+            ProfilerModules.matchClassesContaining("SERVICE").and(Matchers.inSubpackage("com.freiheit.example")),
+            Matchers.any()));
+
+        install(ProfilerModules.decorator(
+            Layers.INTEGRATION,
+            ProfilerModules.matchClassesContaining("DAO").and(Matchers.inSubpackage("com.freiheit.example")),
+            Matchers.any()));
+
+        install(ProfilerModules.decorator(Layers.DEFAULT, Matchers.any(), ProfilerModules.matchProfileMeMethods()));
+    }
+}
+--------------------------------------------------------------------
+
+
+--------------------------------------------------------------------
+public class ExampleServletModule extends ServletModule {
+
+    @Override
+    protected synchronized void configureServlets() {
+        filter("/*").through(ProfilingFilter.class);
+        // your other servlet binding code
+    }
+
+    @Provides
+    @Singleton
+    public ProfilingFilter provideProfilingFilter(CallTreeProfiler profiler) {
+        final ProfilingFilter filter = new ProfilingFilter();
+        filter.setLayerName(Layers.PRESENTATION.getName());
+        filter.setCallTreeProfiler(profiler);
+        filter.setCallDurationThresholdNanos(0);
+        filter.setRequestDurationThresholdNanos(0);
+        return filter;
+    }
+
+}
+
+--------------------------------------------------------------------
+
+
+The ProfilingFilter will start and stop the profiling. It will render the profiling result as a tree to the log file, and associate 
+all times measured on toplevel with the "Presentation" Layer.
+
+In the ExampleProfilingModule we first bind the default implementations for CallTreeProfiler and TimeKeeper interfaces by using 
+ProfilerModules.profiling(). If you want to bind a disabled CallTreeProfiler you can simply use ProfilerModules.noProfiling() instead.
+
+The other installed Modules in the example are for convenience only: They will decorate all bound instances with "Service" within the classname 
+with automatic profiling of all method calls (associated with the "Business" Layer), and all instances with "Dao" within the classname as "Integration" Layer.
+Additionally, we setup support for @ProfileMe annotation. 
+
+
+Option 2: Using the Servlet-Filter directly
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+If your application runs in a servlet container, you may wish to include the ctprofiler-servlet-VERSION.jar and use
+the ProfilingFilter by including the following in your web.xml:
+
+---------------------------------------------------------------------
+    <filter>
+        <filter-name>CTPFilter</filter-name>
+        <filter-class>com.freiheit.fuava.ctprofiler.servlet.ProfilingFilter</filter-class>
+        <init-param>
+            <param-name>name</param-name>
+            <param-value>CTPFilter</param-value>
+        </init-param>
+    </filter>
+
+    <filter-mapping>
+        <filter-name>CTPFilter</filter-name>
+        <url-pattern>/*</url-pattern>
+    </filter-mapping>
+
+---------------------------------------------------------------------
+
+The Filter will use SLF4J and log all call trees to the logger 'com.freiheit.fuava.ctprofiler.servlet.ProfilingFilter'.
+
+In this example, we have used all default options, meaning that the profiler instance used
+is 'ProfilerFactory.getGlobalProfiler()'. If you follow this example, you need to use 'ProfilerFactory.getGlobalProfiler()'
+or 'ProfilerFactory.getGlobalTimeKeeper()' instead of your own instance.
+
+When using the global profiler/timekeeper instances, you easily control wether or not the profiling shall be enabled by setting
+the system property "fdc.fuava.ctprofiler.enabled". The default is "true", if you do not want profiling
+to be enabled simply set it to "false" on startup. For example:
+
+---------------------------------------------------------------------
+java -Dfdc.fuava.ctprofiler.enabled=false YourApp
+---------------------------------------------------------------------
+
+Option 3: Manual Initialization
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+If you do not wish to use the ProfilingFilter of the ctprofiler-servlet jar,
+you may do the initialization yourself:
+
+---------------------------------------------------------------------
+ CallTreeProfiler profiler = ....
+ 
+ void beforeRequestHandling(String requestname) {
+   // make sure there are no dangling measurements
+   profiler.clear();
+   profiler.begin(requestname, System.nanos());
+ }
+ 
+ void afterRequestHandling(String requestname) {
+ 
+   profiler.end(requestname, System.nanos());
+   
+   String output = profiler.renderThreadStateAsText(new StringBuilder()).toString();
+   System.out.println(output);
+   
+ }
+---------------------------------------------------------------------
+
+
+
+Usage
+-----
+
+To get an interesting Calltree, you will now need to add some more measuring points. You have a lot of options for this, here are some suggestions:
+
+
+
+Method interceptor for your DAOs (Spring example)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+It has proved very usefull to add a Method Interceptor to your dependency injection framework which wraps all calls to your DAOs. 
+
+
+The ctprofiler-aop-VERSION.jar provides an implementation of aopalliance MethodInterceptor. 
+
+If you are using Guice, you can use the example module from above and you are done. If you are 
+using Spring, you can achieve similar results like this (please note that this example
+has less features compared to the guice example):
+
+---------------------------------------------------------------------
+
+    <!--  Setup profiling -->
+    <bean id="ctprofiler" class="com.freiheit.fuava.ctprofiler.core.impl.ProfilerFactory" factory-method="getGlobalProfiler"/>
+    <bean id="cttimekeeper" class="com.freiheit.fuava.ctprofiler.core.impl.ProfilerFactory" factory-method="getGlobalTimeKeeper"/>
+    
+    <bean name="ctpMethodInterceptor" class="com.freiheit.fuava.ctprofiler.aop.ProfilingMethodInterceptor">
+        <constructor-arg ref="cttimekeeper"></constructor-arg>
+    </bean>    
+    
+    <bean class="org.springframework.aop.framework.autoproxy.BeanNameAutoProxyCreator">
+        <property name="beanNames"><value>*Dao</value></property>
+        <property name="interceptorNames">
+            <list>
+              <value>ctpMethodInterceptor</value>
+            </list>
+        </property>
+    </bean>
+---------------------------------------------------------------------
+
+
+Explicit Measuring Points
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+If you suspect your code in certain parts to be suboptimal, you could add simple measurements:
+
+---------------------------------------------------------------------
+ TimeKeeper timeKeeper = ...
+ timeKeeper.begin("name");
+ try {
+   // do whatever
+ } finally {
+   timeKeeper.end("name");
+ }
+--------------------------------------------------------------------- 
+
+
+Profile entire objects
+~~~~~~~~~~~~~~~~~~~~~~
+
+If you create objects for which you would like to add profiling of the methods transparently (similar to the Method Interceptor above) you can use the proxy functionality of the TimeKeeper:
+
+---------------------------------------------------------------------
+ TimeKeeper timeKeeper = ...
+ MyInterface myInstance = ...
+ myInstance = timeKeeper.proxy(MyInterface.class, myInstance);
+---------------------------------------------------------------------
+
+
+
+Advanced: Include statistics of computations in different Threads
+-----------------------------------------------------------------
+
+If your application delegates work to worker threads, and later collects the results, you can even include the Call Tree of your delegated work. For example, you could do something along the following lines:
+
+---------------------------------------------------------------------
+   CallTreeProfiler profiler = ...
+   Statistics statistics;
+   profiler.begin("delegating", System.nanoTime());
+   try {
+     Future<Statistics> statisticsFuture = ExecutorService.submit(new Callable<Statistics>() {
+       Statistics call() {
+         CallTreeProfiler profiler = ...
+         try {
+         // do your work
+      
+           return profiler.getStatistics();
+         } finally {
+           profiler.clear();
+         }
+       }
+     });
+   
+     // do some other stuff
+     
+     statistics = statisticsFuture.get();
+   } finally {
+     profiler.end("delegating", System.nanoTime(), statistics);
+   }
+---------------------------------------------------------------------
+
+
+When the output is rendered, the statistics that were associated like above will be marked. An example output is:
+
+---------------------------------------------------------------------
+ ----------- BEGIN SUBTASK ----------
+     [pool-4-thread-13]
+     [      1]      3604,24ms |-
+     [      5]      3585,78ms | |-AmadeusWebserviceAAO.sendRequest
+     [      5]        97,85ms | | |-AxisStubConstructor
+     [      1]       930,80ms | | |-AirMultiAvailability
+     [      1]       930,75ms | | | |-AMADEUS-Webservice
+     [      4]      2556,54ms | | |-FareQuoteItinerary
+     [      4]      2556,31ms | | | |-AMADEUS-Webservice
+     [     21]         0,57ms | |-LocationResolver.resolveLocationForIataAirportCode
+     [      1]         0,06ms | |-SessionPool.return
+
+ ----------- END   SUBTASK ----------
+---------------------------------------------------------------------
+
+
+
+Subprojects
+-----------
+
+ /core                 - Core Call Tree profiling library (with no further dependencies)
+ /servlet              - Convenient Measuring of Servlet Code
+ /aop                  - Implementations of aopalliance-Interfaces for easy profiling of automatically proxied objects
+ /spring               - Spring integration
+ /guice                - Guice integration
+
+Additional directories
+----------------------
+ /released             - 'released' jar versions
+
+
+Build System
+------------
+We use buildr for building , http://buildr.apache.org/installing.html#linux
+
