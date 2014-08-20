@@ -1,5 +1,5 @@
 # Version number for this release
-VERSION_NUMBER = "1.0.0"
+VERSION_NUMBER = "1.0.1"
 # Group identifier for your projects
 GROUP = "com.freiheit.fuava"
 COPYRIGHT = "freiheit.com technologies GmbH (2010)"

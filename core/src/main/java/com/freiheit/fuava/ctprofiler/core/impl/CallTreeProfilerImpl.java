@@ -260,6 +260,10 @@ class CallTreeProfilerImpl implements CallTreeProfiler {
         }
 
         final StackedMeasuringTracks st = stt.get();
+        if (st._stack.isEmpty()) {
+            // be more robust: avoid failures due to wrong use
+            return;
+        }
         final long starttime = st._stack.peek().getStarttime();
         final long duration = endTime - starttime;
         updateCallStack(duration, st, subState);

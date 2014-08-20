@@ -39,6 +39,9 @@ class TimeKeeperImpl implements TimeKeeper {
     private final CallTreeProfiler _callTreeProfiler;
 
     public TimeKeeperImpl(final CallTreeProfiler callTreeProfiler) {
+        if (callTreeProfiler == null) {
+            throw new NullPointerException("Cannot construct a TimeKeeper without a call tree profiler");
+        }
         _callTreeProfiler = callTreeProfiler;
     }
 
