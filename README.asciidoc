@@ -177,12 +177,12 @@ you may do the initialization yourself:
  void beforeRequestHandling(String requestname) {
    // make sure there are no dangling measurements
    profiler.clear();
-   profiler.begin(requestname, System.nanos());
+   profiler.begin(requestname, System.nanoTime());
  }
  
  void afterRequestHandling(String requestname) {
  
-   profiler.end(requestname, System.nanos());
+   profiler.end(requestname, System.nanoTime());
    
    String output = profiler.renderThreadStateAsText(new StringBuilder()).toString();
    System.out.println(output);
