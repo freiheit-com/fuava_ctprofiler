@@ -1,0 +1,13 @@
+jar {
+    baseName="fuava-ctprofiler-aop"
+    manifest {
+        attributes 'Implementation-Title': 'Fuava Calltree-Profiler AOP helpers',
+                'Implementation-Version': version
+    }
+}
+
+dependencies {
+    compile 'aopalliance:aopalliance:1.0'
+    compile project(":core")    
+}
+

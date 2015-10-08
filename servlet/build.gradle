@@ -1,0 +1,13 @@
+jar {
+    baseName="fuava-ctprofiler-servlet"
+    manifest {
+        attributes 'Implementation-Title': 'Fuava Calltree-Profiler Servlet helpers',
+                'Implementation-Version': version
+    }
+}
+
+dependencies {
+    compile 'org.mortbay.jetty:servlet-api:2.5.20110712'
+    compile project(":core")    
+}
+

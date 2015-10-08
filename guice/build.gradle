@@ -1,0 +1,13 @@
+jar {
+    baseName="fuava-ctprofiler-guice"
+    manifest {
+        attributes 'Implementation-Title': 'Fuava Calltree-Profiler Guice integration',
+                'Implementation-Version': version
+    }
+}
+
+dependencies {
+    compile project(":core")
+    compile 'com.google.inject:guice:3.0'    
+}
+

@@ -1,0 +1,14 @@
+jar {
+    baseName="fuava-ctprofiler-spring"
+    manifest {
+        attributes 'Implementation-Title': 'Fuava Calltree-Profiler Spring integration',
+                'Implementation-Version': version
+    }
+}
+
+dependencies {
+    compile project(":core")
+    compile 'org.springframework:spring-core:3.0.1.RELEASE'
+    compile 'org.springframework:spring-beans:3.0.1.RELEASE'    
+}
+

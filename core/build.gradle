@@ -1,0 +1,12 @@
+jar {
+    baseName="fuava-ctprofiler-core"
+    manifest {
+        attributes 'Implementation-Title': 'Fuava Calltree-Profiler Core',
+                'Implementation-Version': version
+    }
+}
+
+dependencies {
+    
+}
+
