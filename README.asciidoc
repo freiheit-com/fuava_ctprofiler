@@ -330,4 +330,18 @@ Additional directories
 Build System
 ------------
 We use buildr for building , http://buildr.apache.org/installing.html#linux
+ 
 
+Publish to maven repo
+---------------------
+
+Make sure to set your maven repository settings in your environment.
+
+For example set the required arguments user wide:
+
+``
+cat $GRADLE_USER_HOME/gradle.properties
+mavenUser=username
+mavenPassword=basic-auth-password
+mavenRepo=repository-url
+```
