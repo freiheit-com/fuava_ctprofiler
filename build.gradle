@@ -1,40 +1,64 @@
 allprojects {
-    apply plugin: 'eclipse'
+  apply plugin: 'eclipse'
 
-    tasks.eclipse.dependsOn << ['cleanEclipse']
+  tasks.eclipse.dependsOn << ['cleanEclipse']
 }
 
 
 subprojects {
-    version = '1.0.1'
+  apply plugin: 'java'
+  apply plugin: 'maven'
+  apply plugin: 'maven-publish'
+
+  version = '1.0.3-SNAPSHOT'
+  repositories {
+    mavenLocal()
+    mavenCentral()
+  }
+
+  sourceCompatibility = JavaVersion.VERSION_1_6
+
+  publishing {
+
     repositories {
-        mavenLocal()
-        mavenCentral()
+      maven {
+        url "$mavenRepo"
+        credentials {
+          username "$mavenUser"
+          password "$mavenPassword"
+        }
+      }
     }
 
-    apply plugin: 'java'
+    task sourcesJar(type: Jar, dependsOn: classes) {
+      classifier = 'sources'
+      baseName = baseName
+      from sourceSets.main.allSource
+    }
 
-    sourceCompatibility = JavaVersion.VERSION_1_6
+    // FIXME javadoc generation fails with errors
+    task javadocJar(type: Jar, dependsOn: javadoc) {
+      classifier = 'javadoc'
+      from javadoc.destinationDir
+    }
+
+    publications {
+      mavenJava(MavenPublication) {
+        from components.java
+        artifact tasks.sourcesJar
+      }
+    }
 
     dependencies {
-        compile 'org.slf4j:slf4j-api:1.7.12'
-        testCompile 'org.testng:testng:6.9.4'
-    }
-    
-    task sourcesJar(type: Jar, dependsOn: classes) {
-        classifier = 'sources'
-        baseName = baseName
-        from sourceSets.main.allSource
+      compile 'org.slf4j:slf4j-api:1.7.12'
+      testCompile 'org.testng:testng:6.9.4'
     }
 
-    task javadocJar(type: Jar, dependsOn: javadoc) {
-        classifier = 'javadoc'
-        from javadoc.destinationDir
-    }
 
     artifacts {
-        archives sourcesJar
-        archives javadocJar
+      archives sourcesJar
+      //archives javadocJar
     }
-    
+  }
+
 }

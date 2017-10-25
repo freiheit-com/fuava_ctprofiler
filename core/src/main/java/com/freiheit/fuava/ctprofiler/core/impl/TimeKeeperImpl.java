@@ -119,7 +119,19 @@ class TimeKeeperImpl implements TimeKeeper {
                     setAccess(method);
                     return method.invoke(instance, args);
                 } catch (final InvocationTargetException e) {
-                    throw e.getCause();
+                    Throwable cause = e.getCause();
+                    if (cause instanceof RuntimeException || cause instanceof Error){
+                        throw cause;
+                    }
+
+                    // throw cause if it's a declared exception
+                    for (Class<?> cls : method.getExceptionTypes()) {
+                        if (cls.isInstance(cause)) {
+                            throw cause;
+                        }
+                    }
+
+                    throw new RuntimeException(cause);
                 } finally {
                     _callTreeProfiler.end(layer, timerName, System.nanoTime());
                 }
